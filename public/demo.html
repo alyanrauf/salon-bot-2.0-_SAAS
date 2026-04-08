@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Salon Assistant — Widget Tester</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(145deg, #fdf0f7 0%, #f0e8fb 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: #6b3057;
+    }
+
+    .logo {
+      font-size: 56px;
+      line-height: 1;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    p {
+      font-size: 1rem;
+      color: #9b5e80;
+      margin-top: 4px;
+    }
+
+    .tenant-form {
+      margin-top: 24px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .tenant-form input {
+      padding: 10px 14px;
+      border: 2px solid #d4a0c0;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      color: #6b3057;
+      outline: none;
+      background: #fff;
+      width: 220px;
+      transition: border-color 0.2s;
+    }
+
+    .tenant-form input:focus {
+      border-color: #8b4a6b;
+    }
+
+    .tenant-form button {
+      padding: 10px 18px;
+      background: #8b4a6b;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .tenant-form button:hover {
+      background: #6b3057;
+    }
+
+    #status {
+      font-size: 0.85rem;
+      color: #b07898;
+      min-height: 1.2em;
+    }
+
+    #status.error {
+      color: #c0392b;
+    }
+
+    #status.success {
+      color: #27ae60;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="logo">💅</div>
+  <h1>Salon Widget Tester</h1>
+  <p>Enter a Tenant ID to load that salon's widget</p>
+
+  <form class="tenant-form" onsubmit="loadWidget(event)">
+    <input
+      id="tenant-input"
+      type="text"
+      placeholder="Enter Tenant ID"
+      autocomplete="off"
+      spellcheck="false"
+    />
+    <button type="submit">Load Widget</button>
+  </form>
+
+  <div id="status"></div>
+
+  <script>
+    var currentScript = null;
+
+    function loadWidget(e) {
+      e.preventDefault();
+      var tenantId = document.getElementById('tenant-input').value.trim();
+      var status   = document.getElementById('status');
+
+      if (!tenantId) {
+        status.textContent = 'Please enter a Tenant ID.';
+        status.className = 'error';
+        return;
+      }
+
+      // Remove previous widget script + DOM if any
+      if (currentScript) {
+        currentScript.remove();
+        currentScript = null;
+      }
+      var existing = document.getElementById('salonbot-wrap');
+      if (existing) existing.remove();
+
+      status.textContent = 'Loading widget for tenant: ' + tenantId + ' …';
+      status.className = '';
+
+      var script = document.createElement('script');
+      script.src = '/widget/' + encodeURIComponent(tenantId) + '/widget.js';
+      script.setAttribute('data-bot-name', 'Salon Assistant');
+      script.setAttribute('data-primary-color', '#8b4a6b');
+
+      script.onload = function () {
+        status.textContent = 'Widget loaded for tenant: ' + tenantId;
+        status.className = 'success';
+        // Auto-open
+        (function tryOpen() {
+          var btn = document.getElementById('salonbot-toggle');
+          if (btn) { btn.click(); }
+          else { setTimeout(tryOpen, 100); }
+        })();
+      };
+
+      script.onerror = function () {
+        status.textContent = 'Failed to load widget for tenant: ' + tenantId + '. Check the ID and try again.';
+        status.className = 'error';
+        script.remove();
+      };
+
+      document.body.appendChild(script);
+      currentScript = script;
+    }
+  </script>
+
+</body>
+</html>
