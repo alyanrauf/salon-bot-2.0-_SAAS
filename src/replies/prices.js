@@ -1,3 +1,5 @@
+const { getDb } = require('../db/database');
+
 function getPricesReply(tenantId) {
   try {
     const db = getDb();
