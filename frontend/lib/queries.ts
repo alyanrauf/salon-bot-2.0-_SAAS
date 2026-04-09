@@ -32,6 +32,7 @@ export const QK = {
   general: () => ["general"] as const,
   clients: () => ["clients"] as const,
   salonName: () => ["salonName"] as const,
+  salonConfig: (tenantId: string) => ["salonConfig", tenantId] as const,
 };
 
 // ─── Fetchers ───────────────────────────────────────────────────────────────
@@ -64,8 +65,13 @@ export const fetchStaff = () => api.get<Staff[]>(`${BASE}/settings/staff`);
 export const fetchRoles = () => api.get<Role[]>(`${BASE}/settings/roles`);
 export const fetchTimings = () => api.get<SalonTimings>(`${BASE}/settings/timings`);
 export const fetchGeneral = () =>
-  api.get<{ currency: string; timezone?: string; tenantId?: string }>(`${BASE}/settings/general`);
+  api.get<{ currency: string; timezone?: string; tenantId?: string; owner_name?: string | null }>(`${BASE}/settings/general`);
 export const fetchClients = () => api.get<Client[]>(`${BASE}/clients`);
+
+export const fetchSalonConfig = (tenantId: string) =>
+  api.get<{ salon_name: string; bot_name: string; primary_color: string }>(
+    `/salon-config/${encodeURIComponent(tenantId)}`
+  );
 
 // Super admin
 const SA = "/super-admin/api";

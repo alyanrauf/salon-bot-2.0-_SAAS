@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const PROTECTED = ["/dashboard", "/bookings", "/clients", "/staff", "/packages", "/deals", "/reports", "/settings"];
+
 const SUPER_PROTECTED = ["/super-admin/dashboard"];
 
 export function middleware(req: NextRequest) {

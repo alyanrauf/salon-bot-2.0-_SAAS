@@ -1351,7 +1351,8 @@ app.get("/salon-admin/api/settings/general", requireTenantAuth, (req, res) => {
     rows.forEach((r) => { result[r.key] = r.value; });
     return result;
   })();
-  res.json({ ...base, tenantId });
+  const tenant = getTenantById(tenantId);
+  res.json({ ...base, tenantId, owner_name: tenant?.owner_name ?? null });
 });
 
 app.put("/salon-admin/api/settings/general", requireTenantAuth, (req, res) => {
@@ -1571,8 +1572,12 @@ app.get("/salon-admin/api/analytics", requireTenantAuth, (req, res) => {
     }));
 
   const bookingsByBranch = {};
+  const revenueByBranch = {};
   for (const b of bookings) {
-    bookingsByBranch[b.branch || "Unknown"] = (bookingsByBranch[b.branch || "Unknown"] || 0) + 1;
+    const key = b.branch || "Unknown";
+    bookingsByBranch[key] = (bookingsByBranch[key] || 0) + 1;
+    const price = parseFloat(String(b.service_price || "0").replace(/[^0-9.]/g, "")) || 0;
+    revenueByBranch[key] = (revenueByBranch[key] || 0) + price;
   }
 
   res.json({
@@ -1582,6 +1587,7 @@ app.get("/salon-admin/api/analytics", requireTenantAuth, (req, res) => {
     topDeals,
     revenueByService: revenueByServiceArr,
     bookingsByBranch,
+    revenueByBranch,
     // ✅ Metadata: client can verify filter applied
     queryRange: { start: rangeFrom, end: rangeTo, tz },
     filtersApplied: { statuses, branch: branch || null, period: period || null },
