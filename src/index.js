@@ -618,16 +618,29 @@ app.get("/salon-admin/logout", (_req, res) => {
 
 app.get("/salon-admin/api/stats", requireTenantAuth, (req, res) => {
   const tenantId = req.tenantId;
-  const today = new Date().toISOString().slice(0, 10);
   const db = getDb();
 
-  // Note: bookings are NOT in the in-memory cache (only services+deals are cached).
-  // All stats read from DB directly — the source of truth.
+  // ✅ FIX: Accept optional tz param. If provided, compute today in that timezone.
+  // Falls back to UTC. Format: YYYY-MM-DD for SQL date comparison.
+  const tz = req.query.tz || "UTC";
+  let today;
+  try {
+    today = new Date().toLocaleDateString("en-CA", { timeZone: tz }); // YYYY-MM-DD in salon TZ
+  } catch {
+    today = new Date().toISOString().slice(0, 10);
+  }
+
+  const serverTime = new Date().toISOString();
+
   res.json({
     total_bookings:  db.prepare(`SELECT COUNT(*) AS n FROM ${tenantId}_bookings WHERE status != 'archived'`).get().n,
     today_bookings:  db.prepare(`SELECT COUNT(*) AS n FROM ${tenantId}_bookings WHERE date = ? AND status NOT IN ('archived','canceled')`).get(today).n,
     active_services: db.prepare(`SELECT COUNT(*) AS n FROM ${tenantId}_services`).get().n,
     total_clients:   db.prepare(`SELECT COUNT(DISTINCT phone) AS n FROM ${tenantId}_bookings WHERE status != 'archived'`).get().n,
+    // ✅ Metadata: frontend can verify what "today" was computed as
+    queryRange: { start: today, end: today, tz },
+    dataFreshAsOf: serverTime,
+    serverTime,
   });
 });
 
@@ -1332,12 +1345,13 @@ app.delete("/salon-admin/api/settings/roles/:id", requireTenantAuth, (req, res) 
 app.get("/salon-admin/api/settings/general", requireTenantAuth, (req, res) => {
   const tenantId = req.tenantId;
   const cache = getCache(tenantId);
-  if (cache?.appSettings) return res.json(cache.appSettings);
-
-  const rows = getDb().prepare(`SELECT key, value FROM ${tenantId}_app_settings`).all();
-  const result = {};
-  rows.forEach((r) => { result[r.key] = r.value; });
-  res.json(result);
+  const base = cache?.appSettings ?? (() => {
+    const rows = getDb().prepare(`SELECT key, value FROM ${tenantId}_app_settings`).all();
+    const result = {};
+    rows.forEach((r) => { result[r.key] = r.value; });
+    return result;
+  })();
+  res.json({ ...base, tenantId });
 });
 
 app.put("/salon-admin/api/settings/general", requireTenantAuth, (req, res) => {
@@ -1464,23 +1478,59 @@ app.post("/api/customer/cancel", async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Salon Admin — Booking Analytics (single source of truth)
-//  GET /salon-admin/api/analytics?branch=&from=&to=&status=confirmed
-//  All CRM cards, charts, and table must use this endpoint — never inline filters.
+//  GET /salon-admin/api/analytics?branch=&period=week&from=&to=&status=completed&tz=Asia/Karachi
+//  status may be comma-separated: "confirmed,completed"
+//  period shorthand: day|week|month|year (computed in salon timezone)
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.get("/salon-admin/api/analytics", requireTenantAuth, (req, res) => {
   const tenantId = req.tenantId;
   const db = getDb();
-  const { branch, from, to, status = "confirmed" } = req.query;
+  // ✅ FIX: Default to "completed" so revenue calcs are semantically correct
+  const { branch, from, to, status = "completed", period, tz = "UTC" } = req.query;
 
+  // ✅ FIX: Accept comma-separated status values (e.g., "confirmed,completed")
+  const statuses = status.split(",").map((s) => s.trim()).filter(Boolean);
+
+  // ✅ FIX: Compute date range from period using salon timezone
+  let rangeFrom = from || null;
+  let rangeTo = to || null;
+  const serverTime = new Date().toISOString();
+
+  if (period && !from && !to) {
+    try {
+      const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: tz }); // YYYY-MM-DD
+
+      if (period === "day") {
+        rangeFrom = todayStr;
+        rangeTo = todayStr;
+      } else if (period === "week") {
+        const d = new Date(todayStr);
+        d.setDate(d.getDate() - d.getDay()); // Start of week (Sunday)
+        rangeFrom = d.toISOString().slice(0, 10);
+        rangeTo = todayStr;
+      } else if (period === "month") {
+        rangeFrom = todayStr.slice(0, 7) + "-01"; // First of month
+        rangeTo = todayStr;
+      } else if (period === "year") {
+        rangeFrom = todayStr.slice(0, 4) + "-01-01";
+        rangeTo = todayStr;
+      }
+    } catch {
+      // period ignored if tz is invalid
+    }
+  }
+
+  // Build WHERE clause
+  const statusPlaceholders = statuses.map(() => "?").join(",");
   let sql = `SELECT b.*, s.price AS service_price FROM ${tenantId}_bookings b
              LEFT JOIN ${tenantId}_services s ON b.service = s.name
-             WHERE b.status = ?`;
-  const args = [status];
+             WHERE b.status IN (${statusPlaceholders})`;
+  const args = [...statuses];
 
   if (branch && branch !== "all") { sql += " AND b.branch = ?"; args.push(branch); }
-  if (from)   { sql += " AND b.date >= ?"; args.push(from); }
-  if (to)     { sql += " AND b.date <= ?"; args.push(to); }
+  if (rangeFrom) { sql += " AND b.date >= ?"; args.push(rangeFrom); }
+  if (rangeTo)   { sql += " AND b.date <= ?"; args.push(rangeTo); }
 
   const bookings = db.prepare(sql).all(...args);
 
@@ -1532,6 +1582,11 @@ app.get("/salon-admin/api/analytics", requireTenantAuth, (req, res) => {
     topDeals,
     revenueByService: revenueByServiceArr,
     bookingsByBranch,
+    // ✅ Metadata: client can verify filter applied
+    queryRange: { start: rangeFrom, end: rangeTo, tz },
+    filtersApplied: { statuses, branch: branch || null, period: period || null },
+    dataFreshAsOf: serverTime,
+    serverTime,
   });
 });
 
@@ -1637,12 +1692,22 @@ app.post("/super-admin/login", (req, res) => {
         JWT_SECRET,
         { expiresIn: "1d" }
       );
-      res.cookie("superAdminSession", token, { httpOnly: true, maxAge: 86_400_000, path: "/" });
+      res.cookie("superAdminSession", token, { httpOnly: true, sameSite: "lax", maxAge: 86_400_000, path: "/" });
+      // Support both JSON fetch (frontend) and HTML form POST (legacy)
+      if (req.headers["content-type"]?.includes("application/json")) {
+        return res.json({ ok: true });
+      }
       return res.redirect("/super-admin/dashboard");
+    }
+    if (req.headers["content-type"]?.includes("application/json")) {
+      return res.status(401).json({ ok: false, error: "Invalid credentials" });
     }
     res.status(401).send("Invalid credentials");
   } catch (err) {
     logger.error("[super-admin login]", err.message);
+    if (req.headers["content-type"]?.includes("application/json")) {
+      return res.status(500).json({ ok: false, error: err.message });
+    }
     res.status(500).send("Login error: " + err.message);
   }
 });

@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+@theme {
+  /* Canvas & Surface */
+  --color-canvas: #F8F7F6;
+  --color-surface: #FFFFFF;
+  --color-border: #E8E3E0;
+
+  /* Brand */
+  --color-rose: #B5484B;
+  --color-rose-hover: #9C3B3E;
+  --color-rose-dim: #F5ECEC;
+  --color-rose-mid: #E8C4C5;
+
+  /* Ink */
+  --color-ink: #1A1A2E;
+  --color-sub: #6B7280;
+  --color-muted: #9CA3AF;
+
+  /* Semantic */
+  --color-success: #16A34A;
+  --color-success-bg: #DCFCE7;
+  --color-warning: #D97706;
+  --color-warning-bg: #FEF3C7;
+  --color-danger: #DC2626;
+  --color-danger-bg: #FEE2E2;
+  --color-info: #2563EB;
+  --color-info-bg: #DBEAFE;
+  --color-neutral: #9CA3AF;
+  --color-neutral-bg: #F3F4F6;
+
+  /* Chart palette (ordered, WCAG AA against white) */
+  --chart-1: #6366F1;
+  --chart-2: #EC4899;
+  --chart-3: #F59E0B;
+  --chart-4: #10B981;
+  --chart-5: #3B82F6;
+  --chart-6: #8B5CF6;
+  --chart-7: #EF4444;
+  --chart-8: #14B8A6;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.12);
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 100px;
+
+  /* Sidebar */
+  --sidebar-width: 240px;
+  --topbar-height: 56px;
+}
+
+/* Reset */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 14px; }
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
+
+/* Focus */
+:focus-visible {
+  outline: 2px solid var(--color-rose);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
