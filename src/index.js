@@ -552,10 +552,16 @@ app.get("/salon-config/:tenantId", async (req, res) => {
     return res.status(404).json({ error: "Salon not found" });
 
   await initCache(tenantId);
+  const settings = (() => {
+    const rows = getDb().prepare(`SELECT key, value FROM ${tenantId}_app_settings`).all();
+    const r = {};
+    rows.forEach((row) => { r[row.key] = row.value; });
+    return r;
+  })();
   res.json({
     salon_name: tenant.salon_name,
-    bot_name: tenant.salon_name + " Assistant",
-    primary_color: "#8b4a6b",
+    bot_name: settings.bot_name || tenant.salon_name,
+    primary_color: settings.primary_color || "#8b4a6b",
   });
 });
 
@@ -1357,19 +1363,26 @@ app.get("/salon-admin/api/settings/general", requireTenantAuth, (req, res) => {
 
 app.put("/salon-admin/api/settings/general", requireTenantAuth, (req, res) => {
   const tenantId = req.tenantId;
-  const { currency } = req.body;
+  const { currency, bot_name, primary_color } = req.body;
   if (!currency?.trim())
     return res.status(400).json({ error: "Currency is required" });
 
-  getDb().prepare(`
-    INSERT INTO ${tenantId}_app_settings (key, value, updated_at) VALUES ('currency', ?, datetime('now'))
+  const db = getDb();
+  const upsert = (key, value) => db.prepare(`
+    INSERT INTO ${tenantId}_app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
-  `).run(currency.trim());
+  `).run(key, value);
+
+  upsert('currency', currency.trim());
+  if (bot_name !== undefined) upsert('bot_name', (bot_name || '').trim());
+  if (primary_color !== undefined) upsert('primary_color', (primary_color || '#8b4a6b').trim());
 
   invalidateSettingsCache();
-  patchCache(tenantId, "appSettings", "upsert", { currency: currency.trim() }).catch((e) =>
-    logger.error("[cache] appSettings patch:", e.message)
-  );
+  patchCache(tenantId, "appSettings", "upsert", {
+    currency: currency.trim(),
+    ...(bot_name !== undefined && { bot_name: (bot_name || '').trim() }),
+    ...(primary_color !== undefined && { primary_color: (primary_color || '#8b4a6b').trim() }),
+  }).catch((e) => logger.error("[cache] appSettings patch:", e.message));
   res.json({ ok: true });
 });
 
