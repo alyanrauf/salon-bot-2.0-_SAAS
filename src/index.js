@@ -28,6 +28,8 @@ const {
   isTenantActive,
   getWebhookConfig,
   upsertWebhookConfig,
+  updateTenantPassword,
+  changeSuperAdminPassword,
 } = require("./db/tenantManager");
 
 // Auth middleware
@@ -598,6 +600,33 @@ app.get("/salon-data.json", (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  Password Reset Requests (in-memory store, cleared on redeploy — MVP)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// resetRequests[tenantId] = { email, salonName, requestedAt }
+const resetRequests = {};
+
+// Public: salon admin submits "forgot password" request
+app.post("/salon-admin/reset-request", (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "email required" });
+
+  const superDb = getSuperDb();
+  const tenant = superDb.prepare("SELECT * FROM salon_tenants WHERE email = ? AND status = 'active'").get(email);
+  // Always return 200 to avoid leaking whether the email exists
+  if (tenant) {
+    resetRequests[tenant.tenant_id] = {
+      tenantId: tenant.tenant_id,
+      email: tenant.email,
+      salonName: tenant.salon_name,
+      ownerName: tenant.owner_name,
+      requestedAt: new Date().toISOString(),
+    };
+  }
+  res.json({ ok: true });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  Salon Admin — Auth
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -608,13 +637,12 @@ app.get("/salon-admin/login", (_req, res) => {
 
 // Login POST (JSON — called by frontend fetch)
 app.post("/salon-admin/login", async (req, res) => {
-  const ip = req.ip || req.socket?.remoteAddress || "unknown";
-  if (rateLimit(`login:tenant:${ip}`, 5, 15 * 60_000))
-    return res.status(429).json({ error: "Too many login attempts. Try again in 15 minutes." });
-
   const { email, password } = req.body;
   if (!email || !password)
     return res.status(400).json({ error: "email and password required" });
+
+  if (rateLimit(`login:tenant:${email}`, 5, 15 * 60_000))
+    return res.status(429).json({ error: "Too many login attempts. Try again in 15 minutes." });
 
   const tenant = authenticateTenant(email, password);
   if (!tenant)
@@ -628,6 +656,25 @@ app.post("/salon-admin/login", async (req, res) => {
 // Dashboard
 app.get("/salon-admin/dashboard", requireTenantAuth, (_req, res) => {
   res.sendFile(path.join(__dirname, "admin/views/panel.html"));
+});
+
+// Change own password
+app.put("/salon-admin/api/change-password", requireTenantAuth, (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword)
+    return res.status(400).json({ error: "currentPassword and newPassword required" });
+  if (newPassword.length < 6)
+    return res.status(400).json({ error: "New password must be at least 6 characters" });
+
+  const superDb = getSuperDb();
+  const tenant = superDb.prepare("SELECT * FROM salon_tenants WHERE tenant_id = ?").get(req.tenantId);
+  if (!tenant) return res.status(404).json({ error: "Tenant not found" });
+
+  if (!bcrypt.compareSync(currentPassword, tenant.password_hash))
+    return res.status(401).json({ error: "Current password is incorrect" });
+
+  updateTenantPassword(req.tenantId, newPassword);
+  res.json({ ok: true });
 });
 
 // Logout
@@ -1633,18 +1680,28 @@ app.get("/salon-admin/api/analytics", requireTenantAuth, (req, res) => {
 
 app.get("/salon-admin/api/webhook-config", requireTenantAuth, (req, res) => {
   const config = getWebhookConfig(req.tenantId);
-  if (!config) return res.json({});
+  // Webhook URLs are always the same regardless of whether credentials are saved
+  const webhook_urls = {
+    whatsapp:  `/webhooks/${req.tenantId}/whatsapp`,
+    instagram: `/webhooks/${req.tenantId}/instagram`,
+    facebook:  `/webhooks/${req.tenantId}/facebook`,
+  };
+  if (!config) {
+    return res.json({
+      has_whatsapp: false,
+      has_instagram: false,
+      has_facebook: false,
+      wa_phone_number_id: "",
+      webhook_urls,
+    });
+  }
   // Never return tokens to the frontend — return only metadata
   res.json({
     has_whatsapp: !!(config.wa_access_token),
     has_instagram: !!(config.ig_page_access_token),
     has_facebook: !!(config.fb_page_access_token),
     wa_phone_number_id: config.wa_phone_number_id || "",
-    webhook_urls: {
-      whatsapp:  `/webhooks/${req.tenantId}/whatsapp`,
-      instagram: `/webhooks/${req.tenantId}/instagram`,
-      facebook:  `/webhooks/${req.tenantId}/facebook`,
-    },
+    webhook_urls,
   });
 });
 
@@ -1869,6 +1926,46 @@ app.post("/super-admin/api/settings", requireSuperAdminAuth, (req, res) => {
   const { default_plan } = req.body;
   if (default_plan) process.env.DEFAULT_PLAN = default_plan;
   res.json({ success: true });
+});
+
+// List pending password-reset requests
+app.get("/super-admin/api/reset-requests", requireSuperAdminAuth, (_req, res) => {
+  res.json(Object.values(resetRequests));
+});
+
+// Super admin sets a new password for a tenant (also clears the reset request)
+app.post("/super-admin/api/tenants/:tenantId/set-password", requireSuperAdminAuth, (req, res) => {
+  const { tenantId } = req.params;
+  const { newPassword } = req.body;
+  if (!newPassword) return res.status(400).json({ error: "newPassword required" });
+  if (newPassword.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
+
+  try {
+    updateTenantPassword(tenantId, newPassword);
+    delete resetRequests[tenantId];
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Super admin changes their own password
+app.put("/super-admin/api/change-password", requireSuperAdminAuth, (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword)
+    return res.status(400).json({ error: "currentPassword and newPassword required" });
+  if (newPassword.length < 6)
+    return res.status(400).json({ error: "New password must be at least 6 characters" });
+
+  const superDb = getSuperDb();
+  const admin = superDb.prepare("SELECT * FROM super_admin WHERE username = ?").get(req.superAdmin.username);
+  if (!admin) return res.status(404).json({ error: "Admin not found" });
+
+  if (!bcrypt.compareSync(currentPassword, admin.password_hash))
+    return res.status(401).json({ error: "Current password is incorrect" });
+
+  changeSuperAdminPassword(req.superAdmin.username, newPassword);
+  res.json({ ok: true });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

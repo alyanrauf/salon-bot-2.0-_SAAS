@@ -2,10 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(npx next:*)",
-      "Read(//d/vs self code/**)"
+      "Read(//d/vs self code/**)",
+      "Bash(node -e ':*)"
     ],
     "additionalDirectories": [
-      "d:\\vs self code\\frontend\\app\\api\\super-admin"
+      "d:\\vs self code\\frontend\\app\\api\\super-admin",
+      "d:\\vs self code\\frontend"
     ]
   }
 }

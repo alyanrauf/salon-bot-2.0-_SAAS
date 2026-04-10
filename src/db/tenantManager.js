@@ -425,6 +425,12 @@ function updateTenantPassword(tenantId, newPassword) {
     db.prepare(`UPDATE salon_tenants SET password_hash = ?, updated_at = datetime('now') WHERE tenant_id = ?`).run(hash, tenantId);
 }
 
+function changeSuperAdminPassword(username, newPassword) {
+    const db = getSuperDb();
+    const hash = bcrypt.hashSync(newPassword, 10);
+    db.prepare(`UPDATE super_admin SET password_hash = ? WHERE username = ?`).run(hash, username);
+}
+
 function updateSalonName(tenantId, newSalonName) {
     const db = getSuperDb();
     db.prepare(`UPDATE salon_tenants SET salon_name = ?, updated_at = datetime('now') WHERE tenant_id = ?`).run(newSalonName, tenantId);
@@ -505,6 +511,7 @@ module.exports = {
     getAllTenants,
     updateTenantStatus,
     updateTenantPassword,
+    changeSuperAdminPassword,
     updateSalonName,
     getTenantSetting,
     setTenantSetting,
