@@ -242,6 +242,16 @@ function initSuperSchema() {
         )
     `);
 
+    // Seed super admin from env vars if table is empty
+    const adminCount = superDb.prepare("SELECT COUNT(*) as count FROM super_admin").get();
+    if (adminCount.count === 0) {
+        const username = process.env.SUPER_ADMIN_USERNAME || 'superadmin';
+        const password = process.env.SUPER_ADMIN_PASSWORD || 'admin123';
+        const hash = bcrypt.hashSync(password, 10);
+        superDb.prepare("INSERT OR IGNORE INTO super_admin (id, username, password_hash, email) VALUES (1, ?, ?, ?)").run(username, hash, 'super@salon.com');
+        console.log('✅ Super admin seeded from env:', username);
+    }
+
     // Create tenant_settings table
     superDb.exec(`
         CREATE TABLE IF NOT EXISTS tenant_settings (

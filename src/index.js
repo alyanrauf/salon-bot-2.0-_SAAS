@@ -100,7 +100,25 @@ app.use('/salon-admin/api', (err, req, res, next) => {
   }
   next();
 });
+app.use((req, res, next) => {
+  const allowedOrigins = [
+    'http://localhost:3002',
+    'https://your-vercel-app.vercel.app'
+  ];
+  const origin = req.headers.origin;
 
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Cookie, Set-Cookie, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
 // CORS for widget.js
 app.use("/widget.js", (_req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -1769,8 +1787,9 @@ app.post("/super-admin/login", (req, res) => {
     res.cookie("superAdminSession", token, {
       httpOnly: true,
       sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
       maxAge: 86_400_000,
-      path: "/"
+      path: "/",
     });
 
     // Always return JSON for fetch requests
