@@ -293,18 +293,6 @@ function initSuperSchema() {
         )
     `);
     
-    // Check if default super admin exists, if not create one
-    const adminCount = superDb.prepare("SELECT COUNT(*) as count FROM super_admin").get();
-    if (adminCount.count === 0) {
-        const initUser = process.env.SUPER_ADMIN_USERNAME || "admin";
-        const initPass = process.env.SUPER_ADMIN_PASSWORD || "admin123";
-        const defaultPassword = bcrypt.hashSync(initPass, 10);
-        superDb.prepare(`
-            INSERT INTO super_admin (id, username, password_hash, email)
-            VALUES (1, ?, ?, 'admin@example.com')
-        `).run(initUser, defaultPassword);
-        logger.info(`[SuperAdmin] Created default super admin user (username: ${initUser})`);
-    }
 }
 
 function generateTenantId() {

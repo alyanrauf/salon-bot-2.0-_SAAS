@@ -13,6 +13,7 @@ Multi-tenant SaaS salon management platform. Two completely separate deployments
 
 The frontend never calls Railway directly. Next.js rewrites in `next.config.ts` proxy all API calls server-side:
 
+**frontend has now been moved to**   `D:\vs self code\frontend`
 ```
 Browser → Vercel (Next.js) → [rewrite proxy] → Railway (Express :3000)
 ```
