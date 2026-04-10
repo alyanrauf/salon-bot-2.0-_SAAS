@@ -355,12 +355,6 @@ function seedTenantData(tenantId, salonName) {
     ];
     for (const deal of deals) insertDeal.run(...deal);
 
-    // Default branch
-    db.prepare(`
-        INSERT INTO ${tenantId}_branches (number, name, address, map_link, phone)
-        VALUES (1, ?, '123 Main Street', 'https://maps.google.com', '+1234567890')
-    `).run(salonName);
-
     // Default salon timings
     db.prepare(`
         INSERT INTO ${tenantId}_salon_timings (day_type, open_time, close_time) VALUES (?, ?, ?)
