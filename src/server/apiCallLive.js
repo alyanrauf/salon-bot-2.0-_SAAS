@@ -228,10 +228,10 @@ function setupCallServer(server) {
 
     // Validate Origin so only allowed domains can open voice calls
     server.on('upgrade', (req, socket, head) => {
-        if (req.url !== '/api/call') return;
-
         // Extract tenantId from URL query parameter
         const url = new URL(req.url, `http://${req.headers.host}`);
+        if (url.pathname !== '/api/call') return;
+
         const tenantId = url.searchParams.get('tenantId');
 
         if (!tenantId) {

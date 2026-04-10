@@ -12,6 +12,7 @@ import type {
   Service,
   Staff,
   Tenant,
+  WebhookConfig,
 } from "./types";
 
 const BASE = "/salon-admin/api";
@@ -33,6 +34,7 @@ export const QK = {
   clients: () => ["clients"] as const,
   salonName: () => ["salonName"] as const,
   salonConfig: (tenantId: string) => ["salonConfig", tenantId] as const,
+  webhookConfig: () => ["webhookConfig"] as const,
 };
 
 // ─── Fetchers ───────────────────────────────────────────────────────────────
@@ -72,6 +74,8 @@ export const fetchSalonConfig = (tenantId: string) =>
   api.get<{ salon_name: string; bot_name: string; primary_color: string }>(
     `/salon-config/${encodeURIComponent(tenantId)}`
   );
+
+export const fetchWebhookConfig = () => api.get<WebhookConfig>(`${BASE}/webhook-config`);
 
 // Super admin
 const SA = "/super-admin/api";

@@ -96,6 +96,18 @@ export interface SalonTimings {
   weekend: { day_type: string; open_time: string; close_time: string } | null;
 }
 
+export interface WebhookConfig {
+  has_whatsapp: boolean;
+  has_instagram: boolean;
+  has_facebook: boolean;
+  wa_phone_number_id: string;
+  webhook_urls: {
+    whatsapp: string;
+    instagram: string;
+    facebook: string;
+  };
+}
+
 export interface Tenant {
   tenant_id: string;
   id?: string;
