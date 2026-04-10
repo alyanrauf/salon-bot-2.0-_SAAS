@@ -1693,41 +1693,92 @@ app.get("/super-admin/login", (_req, res) => {
   });
 });
 
+// app.post("/super-admin/login", (req, res) => {
+//   const ip = req.ip || req.socket?.remoteAddress || "unknown";
+//   if (rateLimit(`login:super:${ip}`, 3, 15 * 60_000))
+//     return res.status(429).send("Too many login attempts. Try again in 15 minutes.");
+
+//   const { username, password } = req.body;
+//   if (!username || !password)
+//     return res.status(400).send("Username and password required");
+
+//   const superDb = getSuperDb();
+//   try {
+//     const admin = superDb.prepare("SELECT * FROM super_admin WHERE username = ?").get(username);
+//     if (admin && bcrypt.compareSync(password, admin.password_hash)) {
+//       const token = jwt.sign(
+//         { username: admin.username, role: "super_admin", email: admin.email },
+//         JWT_SECRET,
+//         { expiresIn: "1d" }
+//       );
+//       res.cookie("superAdminSession", token, { httpOnly: true, sameSite: "lax", maxAge: 86_400_000, path: "/" });
+//       // Support both JSON fetch (frontend) and HTML form POST (legacy)
+//       if (req.headers["content-type"]?.includes("application/json")) {
+//         return res.json({ ok: true });
+//       }
+//       return res.redirect("/super-admin/dashboard");
+//     }
+//     if (req.headers["content-type"]?.includes("application/json")) {
+//       return res.status(401).json({ ok: false, error: "Invalid credentials" });
+//     }
+//     res.status(401).send("Invalid credentials");
+//   } catch (err) {
+//     logger.error("[super-admin login]", err.message);
+//     if (req.headers["content-type"]?.includes("application/json")) {
+//       return res.status(500).json({ ok: false, error: err.message });
+//     }
+//     res.status(500).send("Login error: " + err.message);
+//   }
+// });
+
 app.post("/super-admin/login", (req, res) => {
   const ip = req.ip || req.socket?.remoteAddress || "unknown";
   if (rateLimit(`login:super:${ip}`, 3, 15 * 60_000))
-    return res.status(429).send("Too many login attempts. Try again in 15 minutes.");
+    return res.status(429).json({ error: "Too many login attempts. Try again in 15 minutes." });
 
   const { username, password } = req.body;
-  if (!username || !password)
-    return res.status(400).send("Username and password required");
+
+  console.log("[SUPER LOGIN] Attempt for username:", username);
+
+  if (!username || !password) {
+    return res.status(400).json({ error: "Username and password required" });
+  }
 
   const superDb = getSuperDb();
   try {
     const admin = superDb.prepare("SELECT * FROM super_admin WHERE username = ?").get(username);
-    if (admin && bcrypt.compareSync(password, admin.password_hash)) {
-      const token = jwt.sign(
-        { username: admin.username, role: "super_admin", email: admin.email },
-        JWT_SECRET,
-        { expiresIn: "1d" }
-      );
-      res.cookie("superAdminSession", token, { httpOnly: true, sameSite: "lax", maxAge: 86_400_000, path: "/" });
-      // Support both JSON fetch (frontend) and HTML form POST (legacy)
-      if (req.headers["content-type"]?.includes("application/json")) {
-        return res.json({ ok: true });
-      }
-      return res.redirect("/super-admin/dashboard");
+
+    if (!admin) {
+      console.log("[SUPER LOGIN] User not found:", username);
+      return res.status(401).json({ error: "Invalid credentials" });
     }
-    if (req.headers["content-type"]?.includes("application/json")) {
-      return res.status(401).json({ ok: false, error: "Invalid credentials" });
+
+    const passwordValid = bcrypt.compareSync(password, admin.password_hash);
+
+    if (!passwordValid) {
+      console.log("[SUPER LOGIN] Invalid password for:", username);
+      return res.status(401).json({ error: "Invalid credentials" });
     }
-    res.status(401).send("Invalid credentials");
+
+    const token = jwt.sign(
+      { username: admin.username, role: "super_admin", email: admin.email },
+      JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    res.cookie("superAdminSession", token, {
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 86_400_000,
+      path: "/"
+    });
+
+    // Always return JSON for fetch requests
+    return res.json({ ok: true, redirect: "/super-admin/dashboard" });
+
   } catch (err) {
-    logger.error("[super-admin login]", err.message);
-    if (req.headers["content-type"]?.includes("application/json")) {
-      return res.status(500).json({ ok: false, error: err.message });
-    }
-    res.status(500).send("Login error: " + err.message);
+    console.error("[super-admin login error]", err.message);
+    return res.status(500).json({ error: err.message });
   }
 });
 
