@@ -3,7 +3,11 @@
     "allow": [
       "Bash(npx next:*)",
       "Read(//d/vs self code/**)",
-      "Bash(node -e ':*)"
+      "Bash(node -e ':*)",
+      "Bash(python:*)",
+      "Bash(python -c ':*)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(graphify claude:*)"
     ],
     "additionalDirectories": [
       "d:\\vs self code\\frontend\\app\\api\\super-admin",

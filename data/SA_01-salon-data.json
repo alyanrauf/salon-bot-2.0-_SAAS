@@ -2,18 +2,10 @@
   "meta": {
     "version": 1,
     "generatedAt": "2026-04-08T09:15:30.110Z",
-    "updatedAt": "2026-04-10T10:51:52.799Z",
+    "updatedAt": "2026-04-11T07:54:03.011Z",
     "tenantId": "SA_01"
   },
   "deals": [
-    {
-      "id": 11,
-      "title": "Weekend Special",
-      "description": "Get 20% off all hair services every Saturday and Sunday!",
-      "active": 1,
-      "created_at": "2026-04-08 07:51:30",
-      "updated_at": "2026-04-08 07:51:30"
-    },
     {
       "id": 12,
       "title": "Student Discount",
@@ -41,32 +33,12 @@
   ],
   "services": [
     {
-      "id": 47,
-      "name": "24K Gold Facial – Deal 1",
-      "price": "2,199",
-      "description": "Whitening Glow Skin Polisher · Gold 4 Creams Massage · Neck & Shoulder Relaxing Massage · Whitening Manicure · Whitening Pedicure · Hands & Feet Polisher · Nail Cuticles · Hands & Feet Massage · Hair Protein Application · Eyebrows & Upper Lips",
-      "branch": "All Branches",
-      "durationMinutes": 120,
-      "created_at": "2026-04-08 07:51:30",
-      "updated_at": "2026-04-08 07:51:30"
-    },
-    {
       "id": 54,
       "name": "Acrylic French Nails – Deal 2",
       "price": "3,499",
       "description": "Hand Polisher · Hand Massage · Hand Scrub",
       "branch": "All Branches",
       "durationMinutes": 100,
-      "created_at": "2026-04-08 07:51:30",
-      "updated_at": "2026-04-08 07:51:30"
-    },
-    {
-      "id": 53,
-      "name": "Acrylic Nails – Deal 1",
-      "price": "2,999",
-      "description": "Hand Massage · Hand Scrub · Hand Polisher · Simple Nail Paint",
-      "branch": "All Branches",
-      "durationMinutes": 90,
       "created_at": "2026-04-08 07:51:30",
       "updated_at": "2026-04-08 07:51:30"
     },
@@ -259,6 +231,16 @@
       "durationMinutes": 60,
       "created_at": "2026-04-08 07:51:30",
       "updated_at": "2026-04-08 07:51:30"
+    },
+    {
+      "id": 67,
+      "name": "test",
+      "price": "12455",
+      "description": "testing ",
+      "branch": "branch 1 - Kot Abdul mlik",
+      "durationMinutes": 60,
+      "created_at": "2026-04-11 06:08:46",
+      "updated_at": "2026-04-11 06:08:46"
     }
   ]
 }

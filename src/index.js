@@ -719,127 +719,231 @@ app.get("/salon-admin/api/stats", requireTenantAuth, (req, res) => {
 //  Salon Admin — Deals
 // ─────────────────────────────────────────────────────────────────────────────
 
-app.get("/salon-admin/api/deals", requireTenantAuth, (req, res) => {
+// GET all services
+app.get("/salon-admin/api/services", requireTenantAuth, (req, res) => {
   const tenantId = req.tenantId;
-  const cache = getCache(tenantId);
-  if (cache?.deals) return res.json(cache.deals);
-
-  const deals = getDb().prepare(`SELECT * FROM ${tenantId}_deals ORDER BY id`).all();
-  res.json(deals);
-});
-
-app.post("/salon-admin/deals", requireTenantAuth, (req, res) => {
+  const db = getDb();
   try {
-    const { deals } = req.body;
-    const tenantId = req.tenantId;
-    if (!Array.isArray(deals)) return res.json({ ok: false, error: "Invalid data" });
-
-    const db = getDb();
-    const upsert = db.prepare(`
-      INSERT INTO ${tenantId}_deals (id, title, description, active, updated_at)
-      VALUES (@id, @title, @description, @active, datetime('now'))
-      ON CONFLICT(id) DO UPDATE SET
-        title       = excluded.title,
-        description = excluded.description,
-        active      = excluded.active,
-        updated_at  = excluded.updated_at
-    `);
-    const insert = db.prepare(`
-      INSERT INTO ${tenantId}_deals (title, description, active, updated_at)
-      VALUES (@title, @description, @active, datetime('now'))
-    `);
-
-    const existingIds = new Set(db.prepare(`SELECT id FROM ${tenantId}_deals`).all().map((r) => r.id));
-    const incomingIds = new Set(deals.filter((d) => d.id).map((d) => d.id));
-    const toDelete = [...existingIds].filter((id) => !incomingIds.has(id));
-
-    db.transaction(() => {
-      for (const id of toDelete)
-        db.prepare(`DELETE FROM ${tenantId}_deals WHERE id = ?`).run(id);
-      for (const deal of deals) {
-        const payload = { title: deal.title, description: deal.description, active: deal.active ? 1 : 0 };
-        if (deal.id) upsert.run({ id: deal.id, ...payload });
-        else insert.run(payload);
-      }
-    })();
-
-    const updated = db.prepare(`SELECT * FROM ${tenantId}_deals ORDER BY id`).all();
-    patchCache(tenantId, "deals", "replace", updated).catch((e) =>
-      logger.error("[cache] deals patch:", e.message)
-    );
-    res.json({ ok: true, deals: updated });
+    const services = db.prepare(`SELECT * FROM ${tenantId}_services ORDER BY branch, name`).all();
+    res.json(services);
   } catch (err) {
-    logger.error("[admin] Save deals error:", err.message);
-    res.json({ ok: false, error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Salon Admin — Services
-// ─────────────────────────────────────────────────────────────────────────────
-
-app.get("/salon-admin/api/services", requireTenantAuth, (req, res) => {
+// CREATE single service
+app.post("/salon-admin/api/services", requireTenantAuth, (req, res) => {
   const tenantId = req.tenantId;
-  const cache = getCache(tenantId);
-  if (cache?.services) return res.json(cache.services);
+  const { name, price, description, branch, durationMinutes } = req.body;
+  const db = getDb();
 
-  const services = getDb()
-    .prepare(`SELECT * FROM ${tenantId}_services ORDER BY branch, name`)
-    .all();
-  res.json(services);
-});
+  const errs = [];
+  if (!name?.trim()) errs.push("name");
+  if (!price) errs.push("price");
+  if (!branch) errs.push("branch");
+  if (!durationMinutes) errs.push("durationMinutes");
 
-app.post("/salon-admin/services", requireTenantAuth, (req, res) => {
+  if (errs.length) {
+    return res.status(400).json({ error: `Missing/invalid: ${errs.join(", ")}` });
+  }
+
   try {
-    const { services } = req.body;
-    const tenantId = req.tenantId;
-    if (!Array.isArray(services)) return res.json({ ok: false, error: "Invalid data" });
-
-    const db = getDb();
-    const upsert = db.prepare(`
-      INSERT INTO ${tenantId}_services (id, name, price, description, branch, durationMinutes, updated_at)
-      VALUES (@id, @name, @price, @description, @branch, @durationMinutes, datetime('now'))
-      ON CONFLICT(id) DO UPDATE SET
-        name            = excluded.name,
-        price           = excluded.price,
-        description     = excluded.description,
-        branch          = excluded.branch,
-        durationMinutes = excluded.durationMinutes,
-        updated_at      = excluded.updated_at
-    `);
-    const insert = db.prepare(`
+    const r = db.prepare(`
       INSERT INTO ${tenantId}_services (name, price, description, branch, durationMinutes, updated_at)
-      VALUES (@name, @price, @description, @branch, @durationMinutes, datetime('now'))
-    `);
+      VALUES (?, ?, ?, ?, ?, datetime('now'))
+    `).run(name.trim(), price, description || null, branch.trim(), parseInt(durationMinutes));
 
-    const existingIds = new Set(db.prepare(`SELECT id FROM ${tenantId}_services`).all().map((r) => r.id));
-    const incomingIds = new Set(services.filter((s) => s.id).map((s) => s.id));
-    const toDelete = [...existingIds].filter((id) => !incomingIds.has(id));
+    const newService = db.prepare(`SELECT * FROM ${tenantId}_services WHERE id = ?`).get(r.lastInsertRowid);
 
-    db.transaction(() => {
-      for (const id of toDelete)
-        db.prepare(`DELETE FROM ${tenantId}_services WHERE id = ?`).run(id);
-      for (const svc of services) {
-        const payload = {
-          name: svc.name,
-          price: svc.price,
-          description: svc.description,
-          branch: svc.branch || "All Branches",
-          durationMinutes: svc.durationMinutes || 60,
-        };
-        if (svc.id) upsert.run({ id: svc.id, ...payload });
-        else insert.run(payload);
-      }
-    })();
-
+    // Update cache
     const updated = db.prepare(`SELECT * FROM ${tenantId}_services ORDER BY branch, name`).all();
     patchCache(tenantId, "services", "replace", updated).catch((e) =>
-      logger.error("[cache] services patch:", e.message)
+      logger.error("[cache] services create:", e.message)
     );
-    res.json({ ok: true, services: updated });
+
+    res.json(newService);
   } catch (err) {
-    logger.error("[admin] Save services error:", err.message);
-    res.json({ ok: false, error: err.message });
+    logger.error("[admin] Create service error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// UPDATE single service
+app.put("/salon-admin/api/services/:id", requireTenantAuth, (req, res) => {
+  const tenantId = req.tenantId;
+  const serviceId = req.params.id;
+  const { name, price, description, branch, durationMinutes } = req.body;
+  const db = getDb();
+
+  const errs = [];
+  if (!name?.trim()) errs.push("name");
+  if (!price) errs.push("price");
+  if (!branch) errs.push("branch");
+  if (!durationMinutes) errs.push("durationMinutes");
+
+  if (errs.length) {
+    return res.status(400).json({ error: `Missing/invalid: ${errs.join(", ")}` });
+  }
+
+  const existing = db.prepare(`SELECT * FROM ${tenantId}_services WHERE id = ?`).get(serviceId);
+  if (!existing) {
+    return res.status(404).json({ error: "Service not found" });
+  }
+
+  try {
+    db.prepare(`
+      UPDATE ${tenantId}_services 
+      SET name = ?, price = ?, description = ?, branch = ?, durationMinutes = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(name.trim(), price, description || null, branch.trim(), parseInt(durationMinutes), serviceId);
+
+    const updated = db.prepare(`SELECT * FROM ${tenantId}_services WHERE id = ?`).get(serviceId);
+
+    // Update cache
+    const allServices = db.prepare(`SELECT * FROM ${tenantId}_services ORDER BY branch, name`).all();
+    patchCache(tenantId, "services", "replace", allServices).catch((e) =>
+      logger.error("[cache] services update:", e.message)
+    );
+
+    res.json(updated);
+  } catch (err) {
+    logger.error("[admin] Update service error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE service
+app.delete("/salon-admin/api/services/:id", requireTenantAuth, (req, res) => {
+  const tenantId = req.tenantId;
+  const serviceId = req.params.id;
+  const db = getDb();
+
+  const existing = db.prepare(`SELECT * FROM ${tenantId}_services WHERE id = ?`).get(serviceId);
+  if (!existing) {
+    return res.status(404).json({ error: "Service not found" });
+  }
+
+  try {
+    db.prepare(`DELETE FROM ${tenantId}_services WHERE id = ?`).run(serviceId);
+
+    // Update cache
+    const updated = db.prepare(`SELECT * FROM ${tenantId}_services ORDER BY branch, name`).all();
+    patchCache(tenantId, "services", "replace", updated).catch((e) =>
+      logger.error("[cache] services delete:", e.message)
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error("[admin] Delete service error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET all deals
+app.get("/salon-admin/api/deals", requireTenantAuth, (req, res) => {
+  const tenantId = req.tenantId;
+  const db = getDb();
+  try {
+    const deals = db.prepare(`SELECT * FROM ${tenantId}_deals ORDER BY id`).all();
+    res.json(deals);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// CREATE single deal
+app.post("/salon-admin/api/deals", requireTenantAuth, (req, res) => {
+  const tenantId = req.tenantId;
+  const { title, description, active } = req.body;
+  const db = getDb();
+
+  if (!title?.trim()) {
+    return res.status(400).json({ error: "Title is required" });
+  }
+
+  try {
+    const r = db.prepare(`
+      INSERT INTO ${tenantId}_deals (title, description, active, updated_at)
+      VALUES (?, ?, ?, datetime('now'))
+    `).run(title.trim(), description || null, active ? 1 : 0);
+
+    const newDeal = db.prepare(`SELECT * FROM ${tenantId}_deals WHERE id = ?`).get(r.lastInsertRowid);
+
+    // Update cache
+    const updated = db.prepare(`SELECT * FROM ${tenantId}_deals ORDER BY id`).all();
+    patchCache(tenantId, "deals", "replace", updated).catch((e) =>
+      logger.error("[cache] deals create:", e.message)
+    );
+
+    res.json(newDeal);
+  } catch (err) {
+    logger.error("[admin] Create deal error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// UPDATE single deal
+app.put("/salon-admin/api/deals/:id", requireTenantAuth, (req, res) => {
+  const tenantId = req.tenantId;
+  const dealId = req.params.id;
+  const { title, description, active } = req.body;
+  const db = getDb();
+
+  if (!title?.trim()) {
+    return res.status(400).json({ error: "Title is required" });
+  }
+
+  const existing = db.prepare(`SELECT * FROM ${tenantId}_deals WHERE id = ?`).get(dealId);
+  if (!existing) {
+    return res.status(404).json({ error: "Deal not found" });
+  }
+
+  try {
+    db.prepare(`
+      UPDATE ${tenantId}_deals 
+      SET title = ?, description = ?, active = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(title.trim(), description || null, active ? 1 : 0, dealId);
+
+    const updated = db.prepare(`SELECT * FROM ${tenantId}_deals WHERE id = ?`).get(dealId);
+
+    // Update cache
+    const allDeals = db.prepare(`SELECT * FROM ${tenantId}_deals ORDER BY id`).all();
+    patchCache(tenantId, "deals", "replace", allDeals).catch((e) =>
+      logger.error("[cache] deals update:", e.message)
+    );
+
+    res.json(updated);
+  } catch (err) {
+    logger.error("[admin] Update deal error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE deal
+app.delete("/salon-admin/api/deals/:id", requireTenantAuth, (req, res) => {
+  const tenantId = req.tenantId;
+  const dealId = req.params.id;
+  const db = getDb();
+
+  const existing = db.prepare(`SELECT * FROM ${tenantId}_deals WHERE id = ?`).get(dealId);
+  if (!existing) {
+    return res.status(404).json({ error: "Deal not found" });
+  }
+
+  try {
+    db.prepare(`DELETE FROM ${tenantId}_deals WHERE id = ?`).run(dealId);
+
+    // Update cache
+    const updated = db.prepare(`SELECT * FROM ${tenantId}_deals ORDER BY id`).all();
+    patchCache(tenantId, "deals", "replace", updated).catch((e) =>
+      logger.error("[cache] deals delete:", e.message)
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error("[admin] Delete deal error:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1658,6 +1762,19 @@ app.get("/salon-admin/api/analytics", requireTenantAuth, (req, res) => {
     revenueByBranch[key] = (revenueByBranch[key] || 0) + price;
   }
 
+  // Status breakdown — always all statuses, same date/branch filter (ignores status param)
+  let statusSql = `SELECT b.status, COUNT(*) as count FROM ${tenantId}_bookings b WHERE 1=1`;
+  const statusArgs = [];
+  if (branch && branch !== "all") { statusSql += " AND b.branch = ?"; statusArgs.push(branch); }
+  if (rangeFrom) { statusSql += " AND b.date >= ?"; statusArgs.push(rangeFrom); }
+  if (rangeTo)   { statusSql += " AND b.date <= ?"; statusArgs.push(rangeTo); }
+  statusSql += " GROUP BY b.status";
+  const statusRows = db.prepare(statusSql).all(...statusArgs);
+  const bookingsByStatus = {};
+  for (const row of statusRows) {
+    if (row.status) bookingsByStatus[row.status] = row.count;
+  }
+
   res.json({
     totalRevenue,
     bookingCount: bookings.length,
@@ -1666,6 +1783,7 @@ app.get("/salon-admin/api/analytics", requireTenantAuth, (req, res) => {
     revenueByService: revenueByServiceArr,
     bookingsByBranch,
     revenueByBranch,
+    bookingsByStatus,
     // ✅ Metadata: client can verify filter applied
     queryRange: { start: rangeFrom, end: rangeTo, tz },
     filtersApplied: { statuses, branch: branch || null, period: period || null },

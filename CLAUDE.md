@@ -54,3 +54,15 @@ Two SQLite files on Railway:
 
 - Backend routes, DB schema, auth: `src/CLAUDE.md`
 - Frontend pages, API calls, deploy: `frontend/CLAUDE.md`
+
+## graphify
+
+This project has a graphify knowledge graph at graphify-out/.
+
+The frontend also has a separate graphify knowledge graph at `d:/vs self code/frontend/graphify-out/`.
+
+Rules:
+- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
+- If the task requires making changes to the frontend, read `d:/vs self code/frontend/graphify-out/GRAPH_REPORT.md` before touching frontend files
+- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
+- After modifying code files in this session, run `python3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"` to keep the graph current
