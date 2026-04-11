@@ -74,6 +74,7 @@ setInterval(() => {
 
 const NO_SHOW_GRACE_MIN = parseInt(process.env.NO_SHOW_GRACE_MIN || "30", 10);
 const NO_SHOW_SCAN_MS = 15 * 60 * 1000; // every 15 min
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3002";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Express setup
@@ -105,7 +106,7 @@ app.use('/salon-admin/api', (err, req, res, next) => {
 app.use((req, res, next) => {
   const allowedOrigins = [
     'http://localhost:3002',
-    'https://your-vercel-app.vercel.app'
+    FRONTEND_URL
   ];
   const origin = req.headers.origin;
 
