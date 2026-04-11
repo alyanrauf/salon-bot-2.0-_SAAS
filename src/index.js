@@ -992,7 +992,8 @@ app.post("/salon-admin/api/bookings", requireTenantAuth, (req, res) => {
   const timingErr = checkBookingTimingWithEndTime(date.trim(), time.trim(), endTime, db, tenantId);
   if (timingErr) return res.status(400).json({ ok: false, error: timingErr });
 
-  let staffRequested = staff_id ? 1 : 0;
+  // Admin panel bookings are never customer requests — only bot bookings set staffRequested=1
+  const staffRequested = 0;
 
   if (staff_id) {
     const availErr = checkStaffAvailability(staff_id, date.trim(), time.trim(), endTime, db, tenantId);
@@ -1057,7 +1058,9 @@ app.put("/salon-admin/api/bookings/:id", requireTenantAuth, (req, res) => {
   const timingErr = checkBookingTimingWithEndTime(date.trim(), time.trim(), endTime, db, tenantId);
   if (timingErr) return res.status(400).json({ ok: false, error: timingErr });
 
-  let staffRequested = staff_id ? 1 : 0;
+  // Admin panel bookings are never customer requests — preserve existing staffRequested from DB
+  const existingBooking = db.prepare(`SELECT staffRequested FROM ${tenantId}_bookings WHERE id = ?`).get(bookingId);
+  const staffRequested = existingBooking?.staffRequested ?? 0;
 
   if (staff_id) {
     // Pass excludeBookingId so the existing booking doesn't conflict with itself
