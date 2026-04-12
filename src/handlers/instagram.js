@@ -1,5 +1,6 @@
 const { routeMessage } = require('../core/router');
 const { send } = require('../utils/metaSender');
+const { markWebhookVerified } = require('../db/tenantManager');
 const logger = require('../utils/logger');
 
 async function handleInstagram(req, res, tenantId, webhookConfig) {
@@ -33,7 +34,7 @@ async function handleInstagram(req, res, tenantId, webhookConfig) {
   }
 }
 
-function verifyInstagram(req, res, webhookConfig) {
+function verifyInstagram(req, res, webhookConfig, tenantId) {
   const mode      = req.query['hub.mode'];
   const token     = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
@@ -42,6 +43,7 @@ function verifyInstagram(req, res, webhookConfig) {
 
   if (mode === 'subscribe' && token === expected) {
     logger.info('[Instagram] Webhook verified');
+    if (tenantId) markWebhookVerified(tenantId, 'instagram');
     res.status(200).send(challenge);
   } else {
     logger.error('[Instagram] Webhook verification failed');

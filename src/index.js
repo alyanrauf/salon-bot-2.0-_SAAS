@@ -545,19 +545,19 @@ function tenantWebhookMiddleware(req, res, next) {
 
 // Per-tenant WhatsApp
 app.get("/webhooks/:tenantSlug/whatsapp", tenantWebhookMiddleware, (req, res) =>
-  verifyWhatsApp(req, res, req.webhookConfig));
+  verifyWhatsApp(req, res, req.webhookConfig, req.tenantId));
 app.post("/webhooks/:tenantSlug/whatsapp", tenantWebhookMiddleware, (req, res) =>
   handleWhatsApp(req, res, req.tenantId, req.webhookConfig));
 
 // Per-tenant Instagram
 app.get("/webhooks/:tenantSlug/instagram", tenantWebhookMiddleware, (req, res) =>
-  verifyInstagram(req, res, req.webhookConfig));
+  verifyInstagram(req, res, req.webhookConfig, req.tenantId));
 app.post("/webhooks/:tenantSlug/instagram", tenantWebhookMiddleware, (req, res) =>
   handleInstagram(req, res, req.tenantId, req.webhookConfig));
 
 // Per-tenant Facebook
 app.get("/webhooks/:tenantSlug/facebook", tenantWebhookMiddleware, (req, res) =>
-  verifyFacebook(req, res, req.webhookConfig));
+  verifyFacebook(req, res, req.webhookConfig, req.tenantId));
 app.post("/webhooks/:tenantSlug/facebook", tenantWebhookMiddleware, (req, res) =>
   handleFacebook(req, res, req.tenantId, req.webhookConfig));
 
@@ -1823,6 +1823,9 @@ app.get("/salon-admin/api/webhook-config", requireTenantAuth, (req, res) => {
     has_whatsapp: !!(config.wa_access_token),
     has_instagram: !!(config.ig_page_access_token),
     has_facebook: !!(config.fb_page_access_token),
+    wa_verified: !!(config.wa_webhook_verified),
+    ig_verified: !!(config.ig_webhook_verified),
+    fb_verified: !!(config.fb_webhook_verified),
     wa_phone_number_id: config.wa_phone_number_id || "",
     webhook_urls,
   });

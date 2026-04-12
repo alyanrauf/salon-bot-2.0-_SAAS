@@ -288,10 +288,19 @@ function initSuperSchema() {
             ig_verify_token TEXT,
             fb_page_access_token TEXT,
             fb_verify_token TEXT,
+            wa_webhook_verified INTEGER DEFAULT 0,
+            ig_webhook_verified INTEGER DEFAULT 0,
+            fb_webhook_verified INTEGER DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
         )
     `);
+    // Migrate: add verified columns to existing tables if not present
+    for (const col of ['wa_webhook_verified', 'ig_webhook_verified', 'fb_webhook_verified']) {
+        try {
+            superDb.exec(`ALTER TABLE tenant_webhook_configs ADD COLUMN ${col} INTEGER DEFAULT 0`);
+        } catch (_) { /* column already exists */ }
+    }
     
 }
 
@@ -470,6 +479,13 @@ function getWebhookConfig(tenantId) {
     return db.prepare('SELECT * FROM tenant_webhook_configs WHERE tenant_id = ?').get(tenantId) || null;
 }
 
+function markWebhookVerified(tenantId, platform) {
+    const col = { whatsapp: 'wa_webhook_verified', instagram: 'ig_webhook_verified', facebook: 'fb_webhook_verified' }[platform];
+    if (!col) return;
+    const db = getSuperDb();
+    db.prepare(`UPDATE tenant_webhook_configs SET ${col} = 1, updated_at = datetime('now') WHERE tenant_id = ?`).run(tenantId);
+}
+
 function upsertWebhookConfig(tenantId, config) {
     const db = getSuperDb();
     const {
@@ -489,13 +505,16 @@ function upsertWebhookConfig(tenantId, config) {
              fb_page_access_token, fb_verify_token, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
         ON CONFLICT(tenant_id) DO UPDATE SET
-            wa_phone_number_id  = excluded.wa_phone_number_id,
-            wa_access_token     = excluded.wa_access_token,
-            wa_verify_token     = excluded.wa_verify_token,
-            ig_page_access_token = excluded.ig_page_access_token,
-            ig_verify_token     = excluded.ig_verify_token,
-            fb_page_access_token = excluded.fb_page_access_token,
-            fb_verify_token     = excluded.fb_verify_token,
+            wa_phone_number_id  = COALESCE(excluded.wa_phone_number_id, tenant_webhook_configs.wa_phone_number_id),
+            wa_access_token     = COALESCE(excluded.wa_access_token, tenant_webhook_configs.wa_access_token),
+            wa_verify_token     = COALESCE(excluded.wa_verify_token, tenant_webhook_configs.wa_verify_token),
+            ig_page_access_token = COALESCE(excluded.ig_page_access_token, tenant_webhook_configs.ig_page_access_token),
+            ig_verify_token     = COALESCE(excluded.ig_verify_token, tenant_webhook_configs.ig_verify_token),
+            fb_page_access_token = COALESCE(excluded.fb_page_access_token, tenant_webhook_configs.fb_page_access_token),
+            fb_verify_token     = COALESCE(excluded.fb_verify_token, tenant_webhook_configs.fb_verify_token),
+            wa_webhook_verified = CASE WHEN excluded.wa_access_token IS NOT NULL OR excluded.wa_verify_token IS NOT NULL THEN 0 ELSE tenant_webhook_configs.wa_webhook_verified END,
+            ig_webhook_verified = CASE WHEN excluded.ig_page_access_token IS NOT NULL OR excluded.ig_verify_token IS NOT NULL THEN 0 ELSE tenant_webhook_configs.ig_webhook_verified END,
+            fb_webhook_verified = CASE WHEN excluded.fb_page_access_token IS NOT NULL OR excluded.fb_verify_token IS NOT NULL THEN 0 ELSE tenant_webhook_configs.fb_webhook_verified END,
             updated_at          = excluded.updated_at
     `).run(tenantId, wa_phone_number_id, wa_access_token, wa_verify_token,
             ig_page_access_token, ig_verify_token,
@@ -504,6 +523,7 @@ function upsertWebhookConfig(tenantId, config) {
 
 module.exports = {
     getSuperDb,
+    markWebhookVerified,
     createTenant,
     authenticateTenant,
     getTenantByEmail,

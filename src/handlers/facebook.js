@@ -1,5 +1,6 @@
 const { routeMessage } = require('../core/router');
 const { send } = require('../utils/metaSender');
+const { markWebhookVerified } = require('../db/tenantManager');
 const logger = require('../utils/logger');
 
 async function handleFacebook(req, res, tenantId, webhookConfig) {
@@ -33,7 +34,7 @@ async function handleFacebook(req, res, tenantId, webhookConfig) {
   }
 }
 
-function verifyFacebook(req, res, webhookConfig) {
+function verifyFacebook(req, res, webhookConfig, tenantId) {
   const mode      = req.query['hub.mode'];
   const token     = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
@@ -42,6 +43,7 @@ function verifyFacebook(req, res, webhookConfig) {
 
   if (mode === 'subscribe' && token === expected) {
     logger.info('[Facebook] Webhook verified');
+    if (tenantId) markWebhookVerified(tenantId, 'facebook');
     res.status(200).send(challenge);
   } else {
     logger.error('[Facebook] Webhook verification failed');

@@ -1,5 +1,6 @@
 const { routeMessage } = require('../core/router');
 const { send } = require('../utils/metaSender');
+const { markWebhookVerified } = require('../db/tenantManager');
 const logger = require('../utils/logger');
 
 /**
@@ -52,7 +53,7 @@ async function handleWhatsApp(req, res, tenantId, webhookConfig) {
 /**
  * Webhook verification — works for both per-tenant and legacy routes
  */
-function verifyWhatsApp(req, res, webhookConfig) {
+function verifyWhatsApp(req, res, webhookConfig, tenantId) {
   const mode      = req.query['hub.mode'];
   const token     = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
@@ -61,6 +62,7 @@ function verifyWhatsApp(req, res, webhookConfig) {
 
   if (mode === 'subscribe' && token === expected) {
     logger.info('[WhatsApp] Webhook verified');
+    if (tenantId) markWebhookVerified(tenantId, 'whatsapp');
     res.status(200).send(challenge);
   } else {
     logger.error('[WhatsApp] Webhook verification failed');
