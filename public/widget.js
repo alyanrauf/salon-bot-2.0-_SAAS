@@ -18,6 +18,10 @@
   var botName = scriptEl.getAttribute('data-bot-name') || 'Salon Assistant';
   var primaryColor = scriptEl.getAttribute('data-primary-color') || '#8b4a6b';
 
+  // wsBaseUrl: Railway URL for WebSocket — Vercel can't upgrade WS connections.
+  // Populated from salon-config; falls back to baseUrl (works in local dev).
+  var wsBaseUrl = baseUrl;
+
   // Fetch salon config if tenantId is available (async, doesn't block)
   if (tenantId) {
     fetch(baseUrl + '/salon-config/' + tenantId)
@@ -26,6 +30,9 @@
         if (config && config.bot_name) {
           botName = config.bot_name;
           salonName = config.salon_name || botName; // Store salon name
+        }
+        if (config && config.ws_url) {
+          wsBaseUrl = config.ws_url;
         }
       });
   }
@@ -268,7 +275,7 @@
 
   // ── Gemini Voice Call (WebSocket) ──────────────────────────────────────────
   function startVoiceCall(modal) {
-    var wsUrl = baseUrl.replace('https', 'wss').replace('http', 'ws') + '/api/call?tenantId=' + encodeURIComponent(tenantId);
+    var wsUrl = wsBaseUrl.replace('https', 'wss').replace('http', 'ws') + '/api/call?tenantId=' + encodeURIComponent(tenantId);
     console.log('[call] startVoiceCall() connecting to', wsUrl);
 
     startDialTone();

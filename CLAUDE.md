@@ -57,7 +57,7 @@ Two SQLite files on Railway:
 
 ## graphify
 
-This project has a graphify knowledge graph at graphify-out/.
+This project has a graphify knowledge graph at `d:/vs self code/salon-bot/graphify-out/`.
 
 The frontend also has a separate graphify knowledge graph at `d:/vs self code/frontend/graphify-out/`.
 

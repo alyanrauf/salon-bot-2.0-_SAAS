@@ -74,7 +74,6 @@ setInterval(() => {
 
 const NO_SHOW_GRACE_MIN = parseInt(process.env.NO_SHOW_GRACE_MIN || "30", 10);
 const NO_SHOW_SCAN_MS = 15 * 60 * 1000; // every 15 min
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3002";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Express setup
@@ -106,8 +105,8 @@ app.use('/salon-admin/api', (err, req, res, next) => {
 app.use((req, res, next) => {
   const allowedOrigins = [
     'http://localhost:3002',
-    FRONTEND_URL
-  ];
+    process.env.FRONTEND_URL || '',
+  ].filter(Boolean);
   const origin = req.headers.origin;
 
   if (allowedOrigins.includes(origin)) {
@@ -583,6 +582,8 @@ app.get("/salon-config/:tenantId", async (req, res) => {
     salon_name: tenant.salon_name,
     bot_name: settings.bot_name || tenant.salon_name,
     primary_color: settings.primary_color || "#8b4a6b",
+    // ws_url: direct Railway URL for WebSocket (Vercel can't upgrade WebSockets)
+    ws_url: (process.env.PUBLIC_URL || "").replace(/\/$/, ""),
   });
 });
 
