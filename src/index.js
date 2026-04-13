@@ -28,6 +28,7 @@ const {
   isTenantActive,
   getWebhookConfig,
   upsertWebhookConfig,
+  clearWebhookChannel,
   updateTenantPassword,
   changeSuperAdminPassword,
 } = require("./db/tenantManager");
@@ -1843,6 +1844,15 @@ app.put("/salon-admin/api/webhook-config", requireTenantAuth, (req, res) => {
     ig_page_access_token, ig_verify_token,
     fb_page_access_token, fb_verify_token,
   });
+  res.json({ ok: true });
+});
+
+app.delete("/salon-admin/api/webhook-config/:channel", requireTenantAuth, (req, res) => {
+  const { channel } = req.params;
+  if (!["whatsapp", "instagram", "facebook"].includes(channel)) {
+    return res.status(400).json({ error: "Invalid channel" });
+  }
+  clearWebhookChannel(req.tenantId, channel);
   res.json({ ok: true });
 });
 

@@ -521,6 +521,18 @@ function upsertWebhookConfig(tenantId, config) {
             fb_page_access_token, fb_verify_token);
 }
 
+function clearWebhookChannel(tenantId, channel) {
+    const db = getSuperDb();
+    const fieldMap = {
+        whatsapp: `wa_phone_number_id = NULL, wa_access_token = NULL, wa_verify_token = NULL, wa_webhook_verified = 0`,
+        instagram: `ig_page_access_token = NULL, ig_verify_token = NULL, ig_webhook_verified = 0`,
+        facebook: `fb_page_access_token = NULL, fb_verify_token = NULL, fb_webhook_verified = 0`,
+    };
+    const fields = fieldMap[channel];
+    if (!fields) return;
+    db.prepare(`UPDATE tenant_webhook_configs SET ${fields}, updated_at = datetime('now') WHERE tenant_id = ?`).run(tenantId);
+}
+
 module.exports = {
     getSuperDb,
     markWebhookVerified,
@@ -538,4 +550,5 @@ module.exports = {
     isTenantActive,
     getWebhookConfig,
     upsertWebhookConfig,
+    clearWebhookChannel,
 };
